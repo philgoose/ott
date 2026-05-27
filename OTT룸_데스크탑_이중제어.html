@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OTT룸 데스크탑 · 이중 제어 앱</title>
+<style>
+:root{
+  --navy:#14264a;--gold:#f3b94d;--ink:#333;--muted:#6b7280;--bg:#f4f7fb;
+  --card:#fff;--ok:#16a34a;--warn:#f59e0b;--bad:#dc2626;--line:#e5e7eb;
+  --desk-bg:#0a1628;--taskbar:#1b2a44;--win-border:#3d5a80;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;font-family:"Segoe UI",system-ui,sans-serif;color:var(--ink)}
+
+/* ===== DESKTOP LAYER ===== */
+#desktop{
+  position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(243,185,77,.12), transparent 50%),
+    radial-gradient(ellipse 60% 50% at 85% 80%, rgba(59,130,246,.15), transparent 55%),
+    linear-gradient(160deg,#0f172a 0%,#1e293b 35%,#0f2744 70%,#14264a 100%);
+}
+#desktop::before{
+  content:"";position:absolute;inset:0;opacity:.08;
+  background-image:linear-gradient(rgba(255,255,255,.06) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.06) 1px,transparent 1px);
+  background-size:48px 48px;pointer-events:none;
+}
+.desktop-icons{
+  position:absolute;top:18px;left:18px;display:grid;gap:14px;z-index:2;
+}
+.d-icon{
+  width:86px;padding:8px 6px;border-radius:12px;text-align:center;cursor:pointer;
+  color:#e2e8f0;font-size:11px;font-weight:600;user-select:none;
+  transition:background .15s,transform .15s;
+}
+.d-icon:hover{background:rgba(255,255,255,.12);transform:translateY(-2px)}
+.d-icon:active{transform:scale(.96)}
+.d-icon .ico{
+  width:52px;height:52px;margin:0 auto 6px;border-radius:14px;display:grid;place-items:center;
+  font-size:26px;box-shadow:0 8px 24px rgba(0,0,0,.35);
+}
+.ico-kiosk{background:linear-gradient(135deg,var(--gold),#ffd166);color:var(--navy)}
+.ico-room{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff}
+.ico-admin{background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff}
+.ico-log{background:linear-gradient(135deg,#64748b,#475569);color:#fff}
+
+#taskbar{
+  position:fixed;left:0;right:0;bottom:0;height:46px;z-index:1000;
+  background:linear-gradient(180deg,rgba(27,42,68,.95),rgba(15,23,42,.98));
+  border-top:1px solid rgba(255,255,255,.08);
+  display:flex;align-items:center;padding:0 10px;gap:8px;
+  backdrop-filter:blur(12px);
+}
+.start-btn{
+  width:38px;height:34px;border:0;border-radius:8px;cursor:pointer;
+  background:linear-gradient(135deg,var(--navy),#203a6b);color:#fff;font-weight:900;font-size:13px;
+}
+.task-pill{
+  padding:6px 14px;border-radius:8px;background:rgba(255,255,255,.08);color:#cbd5e1;
+  font-size:12px;font-weight:700;cursor:pointer;border:1px solid transparent;
+}
+.task-pill.active{background:rgba(243,185,77,.2);border-color:rgba(243,185,77,.4);color:#fde68a}
+.task-spacer{flex:1}
+.clock{color:#94a3b8;font-size:12px;font-weight:600;padding-right:8px;text-align:right;line-height:1.3}
+.clock b{display:block;color:#e2e8f0;font-size:13px}
+
+/* ===== WINDOW SYSTEM ===== */
+.win{
+  position:absolute;background:#f8fafc;border:1px solid var(--win-border);border-radius:12px;
+  box-shadow:0 24px 60px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.05) inset;
+  display:flex;flex-direction:column;min-width:280px;min-height:180px;overflow:hidden;
+  resize:both;
+}
+.win.maximized{inset:0!important;width:auto!important;height:auto!important;border-radius:0;resize:none}
+.win.focused{z-index:500;box-shadow:0 28px 70px rgba(0,0,0,.55),0 0 0 2px rgba(243,185,77,.35)}
+.win-bar{
+  height:38px;background:linear-gradient(180deg,#2d4a6f,#1e3a5f);display:flex;align-items:center;
+  padding:0 10px;gap:8px;cursor:grab;user-select:none;flex-shrink:0;
+}
+.win-bar:active{cursor:grabbing}
+.win-dot{width:11px;height:11px;border-radius:50%;border:0;cursor:pointer;flex-shrink:0}
+.dot-close{background:#ff5f57}.dot-min{background:#febc2e}.dot-max{background:#28c840}
+.win-title{color:#e2e8f0;font-size:12px;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.win-body{flex:1;overflow:auto;background:#fff;position:relative}
+
+/* ===== ROOM 3D VIEW ===== */
+.room-scene{
+  min-height:100%;background:linear-gradient(180deg,#1a1a2e 0%,#16213e 40%,#0f3460 100%);
+  display:flex;flex-direction:column;padding:16px;
+}
+.room-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;color:#e2e8f0}
+.room-header h2{margin:0;font-size:18px}
+.room-badge{padding:4px 10px;border-radius:999px;font-size:11px;font-weight:800;background:rgba(255,255,255,.1)}
+.room-canvas{
+  flex:1;perspective:900px;display:grid;place-items:center;min-height:340px;
+}
+.room-box{
+  width:min(92%,520px);aspect-ratio:1.2;position:relative;transform-style:preserve-3d;
+  transform:rotateX(8deg) rotateY(-18deg);transition:transform .4s;
+}
+.room-box.dragging{transition:none}
+.room-floor{
+  position:absolute;inset:8% 5% 18%;background:linear-gradient(135deg,#3d2914,#5c4033 40%,#4a3728);
+  border-radius:4px;transform:rotateX(90deg) translateZ(-80px);box-shadow:inset 0 0 40px rgba(0,0,0,.5);
+}
+.room-back{
+  position:absolute;inset:8% 5% 18%;background:linear-gradient(180deg,#2d3748,#1a202c);
+  border:2px solid #4a5568;border-radius:2px;
+}
+.room-back::after{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 30%,rgba(255,255,255,.06),transparent 60%);
+}
+.room-light{
+  position:absolute;top:12%;left:50%;transform:translateX(-50%);
+  width:120px;height:8px;background:#fef3c7;border-radius:4px;
+  box-shadow:0 0 30px 15px rgba(254,243,199,.4);transition:all .4s;
+}
+.room-light.off{background:#374151;box-shadow:none}
+.room-tv{
+  position:absolute;top:28%;left:50%;transform:translateX(-50%);
+  width:42%;height:22%;background:#111;border:4px solid #333;border-radius:6px;
+  display:grid;place-items:center;color:#64748b;font-size:11px;font-weight:700;
+  transition:all .35s;cursor:pointer;
+}
+.room-tv.on{background:linear-gradient(135deg,#0f172a,#1e3a5f);border-color:var(--gold);
+  color:var(--gold);box-shadow:0 0 40px rgba(243,185,77,.35);
+}
+.room-sofa{
+  position:absolute;bottom:22%;left:50%;transform:translateX(-50%);
+  width:50%;height:14%;background:linear-gradient(180deg,#7c3aed,#5b21b6);
+  border-radius:12px 12px 6px 6px;cursor:pointer;
+}
+.room-table{
+  position:absolute;bottom:38%;left:50%;transform:translateX(-50%);
+  width:22%;height:6%;background:#78716c;border-radius:4px;
+}
+.room-locker{
+  position:absolute;bottom:22%;right:8%;width:14%;height:28%;
+  background:linear-gradient(180deg,#64748b,#475569);border:2px solid #94a3b8;
+  border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:#e2e8f0;font-size:9px;font-weight:800;text-align:center;transition:all .3s;
+}
+.room-locker.open{border-color:var(--gold);background:linear-gradient(180deg,#78716c,#57534e);
+  transform:translateX(8px);box-shadow:-4px 0 12px rgba(0,0,0,.3);
+}
+.room-door{
+  position:absolute;bottom:18%;left:8%;width:12%;height:32%;
+  background:linear-gradient(90deg,#92400e,#b45309);border:2px solid #d97706;
+  border-radius:2px;cursor:pointer;transition:transform .5s;transform-origin:left center;
+}
+.room-door.open{transform:perspective(400px) rotateY(-55deg)}
+.room-glow{
+  position:absolute;inset:8% 5% 18%;pointer-events:none;opacity:0;transition:opacity .4s;
+  background:radial-gradient(ellipse at 50% 20%,rgba(243,185,77,.15),transparent 65%);
+}
+.room-glow.on{opacity:1}
+.room-controls{
+  display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;
+}
+.room-controls button{
+  border:0;border-radius:10px;padding:9px 14px;font-weight:800;cursor:pointer;
+  background:rgba(255,255,255,.12);color:#e2e8f0;font-size:12px;
+}
+.room-controls button:hover{background:rgba(255,255,255,.2)}
+.room-controls button.on{background:var(--gold);color:var(--navy)}
+.room-info{color:#94a3b8;font-size:12px;margin-top:10px;line-height:1.6}
+.room-hint{
+  position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+  color:rgba(255,255,255,.45);font-size:11px;pointer-events:none;
+}
+
+/* ===== KIOSK APP (inner) ===== */
+.kiosk-wrap{background:radial-gradient(circle at top left,#e8f0ff 0,#f7f8fb 38%,#fff 100%);min-height:100%}
+.kiosk-header{background:linear-gradient(135deg,var(--navy),#203a6b);color:#fff;padding:14px 16px}
+.kiosk-header h1{margin:0;font-size:17px}
+.kiosk-header p{margin:4px 0 0;font-size:11px;color:#dbe7ff}
+.kiosk-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.kiosk-metric{background:rgba(255,255,255,.1);border-radius:12px;padding:8px;text-align:center}
+.kiosk-metric b{display:block;font-size:16px}.kiosk-metric span{font-size:10px;color:#dbe7ff}
+.kiosk-main{padding:12px}
+.kiosk-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.k-tab{border:1px solid var(--line);background:#fff;padding:7px 12px;border-radius:999px;cursor:pointer;font-weight:700;font-size:12px;color:var(--navy)}
+.k-tab.active{background:var(--navy);color:#fff}
+.k-panel{display:none}.k-panel.active{display:block}
+.k-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:12px}
+.k-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px}
+.k-card h2{margin:0 0 10px;font-size:15px;color:var(--navy)}
+.k-card h3{margin:10px 0 6px;font-size:13px;color:var(--navy)}
+.muted{color:var(--muted);font-size:12px}
+.rooms{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;max-height:220px;overflow:auto}
+.room-tile{border:1px solid var(--line);border-radius:12px;padding:8px;background:#fff;cursor:pointer;font-size:11px}
+.room-tile.selected{outline:2px solid var(--gold)}
+.room-tile b{display:flex;justify-content:space-between;align-items:center}
+.pill{border-radius:999px;padding:2px 6px;font-size:10px;font-weight:800}
+.free{background:#dcfce7;color:#166534}.busy{background:#fee2e2;color:#991b1b}
+.clean{background:#fef3c7;color:#92400e}.off{background:#e5e7eb;color:#4b5563}
+.controls{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+button.btn{border:0;border-radius:10px;padding:8px 12px;font-weight:800;cursor:pointer;font-size:12px;background:var(--navy);color:#fff}
+button.gold{background:var(--gold);color:var(--navy)}button.gray{background:#eef2f7;color:#1f2937}
+button.bad{background:var(--bad)}button.ok{background:var(--ok)}
+input,select{width:100%;border:1px solid var(--line);border-radius:10px;padding:8px;font:inherit;font-size:12px}
+label{font-size:11px;font-weight:800;color:var(--navy);display:block;margin:6px 0 4px}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.log{max-height:200px;overflow:auto;background:#0f172a;color:#dbeafe;border-radius:12px;padding:10px;font-family:Consolas,monospace;font-size:11px}
+.log p{margin:0 0 4px}
+.table{width:100%;border-collapse:collapse;font-size:11px}
+.table th,.table td{border-bottom:1px solid var(--line);padding:6px;text-align:left}
+.table th{background:#f8fafc;color:var(--navy)}
+
+.toast{
+  position:fixed;right:18px;bottom:58px;background:var(--navy);color:#fff;
+  border-radius:14px;padding:12px 16px;box-shadow:0 16px 38px rgba(0,0,0,.3);
+  display:none;z-index:2000;font-size:13px;font-weight:600;
+}
+.start-menu{
+  position:fixed;left:10px;bottom:52px;width:280px;background:#1e293b;border:1px solid #334155;
+  border-radius:14px;padding:14px;z-index:1500;display:none;box-shadow:0 20px 50px rgba(0,0,0,.5);
+}
+.start-menu.open{display:block}
+.start-menu h3{margin:0 0 10px;color:#e2e8f0;font-size:14px}
+.start-item{
+  display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer;
+  color:#cbd5e1;font-size:13px;font-weight:600;
+}
+.start-item:hover{background:rgba(255,255,255,.08)}
+
+@media(max-width:900px){
+  .k-grid,.kiosk-metrics{grid-template-columns:1fr 1fr}
+  .rooms{grid-template-columns:repeat(3,1fr)}
+  .formgrid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div id="desktop">
+  <div class="desktop-icons">
+    <div class="d-icon" data-open="kiosk"><div class="ico ico-kiosk">🎬</div>룸 키오스크</div>
+    <div class="d-icon" data-open="room"><div class="ico ico-room">🏠</div>3D 룸 뷰</div>
+    <div class="d-icon" data-open="admin"><div class="ico ico-admin">📊</div>관리자</div>
+    <div class="d-icon" data-open="log"><div class="ico ico-log">📋</div>운영 로그</div>
+  </div>
+</div>
+
+<div id="windows"></div>
+
+<div class="start-menu" id="startMenu">
+  <h3>OTT룸 제어 데스크탑</h3>
+  <div class="start-item" data-open="kiosk">🎬 룸 키오스크 열기</div>
+  <div class="start-item" data-open="room">🏠 3D 룸 뷰 열기</div>
+  <div class="start-item" data-open="admin">📊 관리자 대시보드</div>
+  <div class="start-item" data-open="log">📋 운영 로그</div>
+  <div class="start-item" onclick="resetDemo()">🔄 데모 초기화</div>
+</div>
+
+<div id="taskbar">
+  <button class="start-btn" id="startBtn">FG</button>
+  <div class="task-pill active" data-win="kiosk">키오스크</div>
+  <div class="task-pill" data-win="room">3D 룸</div>
+  <div class="task-spacer"></div>
+  <div class="clock"><b id="clockTime">--:--</b><span id="clockDate">----</span></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== SHARED STATE ===== */
+const pricePerHour = 12000;
+let selected = 101;
+let logs = [];
+let sales = 0;
+let rooms = Array.from({length:30}, (_, i) => ({
+  no: 101 + i,
+  status: i < 3 ? 'busy' : (i === 4 ? 'clean' : 'free'),
+  phone: i < 3 ? '010-****-' + String(1000 + i) : '',
+  remain: i < 3 ? 45 + i * 20 : 0,
+  power: i < 3,
+  locker: false
+}));
+
+const winDefs = {
+  kiosk: { title: '룸 키오스크 — 결제/락커/전원', w: 720, h: 580, x: 120, y: 40 },
+  room:  { title: '3D 룸 뷰 — 실시간 조작', w: 560, h: 520, x: 400, y: 60 },
+  admin: { title: '관리자 대시보드', w: 640, h: 480, x: 200, y: 100 },
+  log:   { title: '운영 로그', w: 420, h: 400, x: 500, y: 120 }
+};
+
+const windows = {};
+let zCounter = 10;
+let roomRotY = -18;
+let roomRotX = 8;
+
+function money(n) { return '₩' + n.toLocaleString('ko-KR'); }
+function label(s) { return { free:'가능', busy:'이용중', clean:'청소중', off:'점검' }[s] || s; }
+function currentRoom() { return rooms.find(x => x.no === selected); }
+
+function toast(t) {
+  const el = document.getElementById('toast');
+  el.textContent = t;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 2200);
+}
+
+function addLog(t) {
+  const time = new Date().toLocaleTimeString('ko-KR');
+  logs.unshift(`[${time}] ${t}`);
+  localStorage.setItem('kioskLogs', JSON.stringify(logs));
+  renderAll();
+}
+
+/* ===== WINDOW SYSTEM ===== */
+function focusWin(id) {
+  Object.values(windows).forEach(w => w.el.classList.remove('focused'));
+  if (windows[id]) {
+    windows[id].el.style.zIndex = ++zCounter;
+    windows[id].el.classList.add('focused');
+  }
+  document.querySelectorAll('.task-pill[data-win]').forEach(p => {
+    p.classList.toggle('active', p.dataset.win === id);
+  });
+}
+
+function createWindow(id) {
+  if (windows[id]) {
+    windows[id].el.style.display = 'flex';
+    if (windows[id].minimized) {
+      windows[id].minimized = false;
+      windows[id].el.style.transform = '';
+      windows[id].el.style.opacity = '';
+    }
+    focusWin(id);
+    return;
+  }
+  const def = winDefs[id];
+  const el = document.createElement('div');
+  el.className = 'win focused';
+  el.dataset.id = id;
+  el.style.cssText = `left:${def.x}px;top:${def.y}px;width:${def.w}px;height:${def.h}px;z-index:${++zCounter}`;
+  el.innerHTML = `
+    <div class="win-bar">
+      <button class="win-dot dot-close" data-act="close"></button>
+      <button class="win-dot dot-min" data-act="min"></button>
+      <button class="win-dot dot-max" data-act="max"></button>
+      <span class="win-title">${def.title}</span>
+    </div>
+    <div class="win-body" id="body-${id}"></div>`;
+  document.getElementById('windows').appendChild(el);
+  windows[id] = { el, minimized: false, maximized: false };
+  renderWindowContent(id);
+  setupWindowDrag(el, id);
+  el.addEventListener('mousedown', () => focusWin(id));
+  el.querySelector('.dot-close').onclick = () => { el.style.display = 'none'; };
+  el.querySelector('.dot-min').onclick = () => {
+    windows[id].minimized = true;
+    el.style.transform = 'scale(0.6) translateY(200px)';
+    el.style.opacity = '0';
+    el.style.pointerEvents = 'none';
+    setTimeout(() => { el.style.display = 'none'; el.style.pointerEvents = ''; }, 300);
+  };
+  el.querySelector('.dot-max').onclick = () => {
+    windows[id].maximized = !windows[id].maximized;
+    el.classList.toggle('maximized', windows[id].maximized);
+  };
+  focusWin(id);
+}
+
+function setupWindowDrag(el, id) {
+  const bar = el.querySelector('.win-bar');
+  let sx, sy, sl, st;
+  bar.addEventListener('mousedown', e => {
+    if (e.target.dataset.act || windows[id].maximized) return;
+    e.preventDefault();
+    focusWin(id);
+    sx = e.clientX; sy = e.clientY;
+    sl = el.offsetLeft; st = el.offsetTop;
+    const move = ev => {
+      el.style.left = (sl + ev.clientX - sx) + 'px';
+      el.style.top = (st + ev.clientY - sy) + 'px';
+    };
+    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+}
+
+function renderWindowContent(id) {
+  const body = document.getElementById('body-' + id);
+  if (!body) return;
+  if (id === 'kiosk') body.innerHTML = kioskHTML();
+  else if (id === 'room') body.innerHTML = roomHTML();
+  else if (id === 'admin') body.innerHTML = adminHTML();
+  else if (id === 'log') body.innerHTML = logHTML();
+  bindWindowEvents(id);
+}
+
+function kioskHTML() {
+  return `<div class="kiosk-wrap">
+    <div class="kiosk-header">
+      <h1>30실 OTT룸 키오스크</h1>
+      <p>데스크탑 안에서 실행 · 룸 뷰와 실시간 연동</p>
+      <div class="kiosk-metrics">
+        <div class="kiosk-metric"><b id="mFree">0</b><span>이용 가능</span></div>
+        <div class="kiosk-metric"><b id="mBusy">0</b><span>이용 중</span></div>
+        <div class="kiosk-metric"><b id="mSales">₩0</b><span>오늘 매출</span></div>
+        <div class="kiosk-metric"><b id="mAlerts">0</b><span>로그</span></div>
+      </div>
+    </div>
+    <div class="kiosk-main">
+      <div class="kiosk-tabs">
+        <button class="k-tab active" data-ktab="pay">결제/이용</button>
+        <button class="k-tab" data-ktab="hw">하드웨어</button>
+      </div>
+      <div class="k-panel active" id="kpay">
+        <div class="k-grid">
+          <div class="k-card"><h2>룸 선택</h2><div class="rooms" id="rooms"></div></div>
+          <div class="k-card">
+            <h2>이용/결제</h2>
+            <div class="formgrid">
+              <div><label>휴대폰</label><input id="phone" placeholder="010-0000-0000"></div>
+              <div><label>방식</label><select id="mode"><option value="prepay">선불</option><option value="pass">회원권</option><option value="postpay">후불</option></select></div>
+              <div><label>시간</label><select id="minutes"><option value="60">1시간</option><option value="120">2시간</option><option value="180">3시간</option></select></div>
+              <div><label>결제</label><select id="pay"><option>IC카드</option><option>삼성페이</option><option>회원권</option></select></div>
+            </div>
+            <div class="controls">
+              <button class="btn gold" onclick="startUse()">결제 → 락커/전원 ON</button>
+              <button class="btn gray" onclick="extendUse()">30분 연장</button>
+              <button class="btn bad" onclick="checkout()">퇴실/정산</button>
+            </div>
+            <p id="selectedInfo" class="muted" style="margin-top:8px">룸을 선택하세요.</p>
+          </div>
+        </div>
+      </div>
+      <div class="k-panel" id="khw">
+        <div class="k-card">
+          <h2>하드웨어 명령</h2>
+          <div class="formgrid">
+            <div><label>대상</label><input id="hwTarget" value="101"></div>
+            <div><label>장비</label><select id="hwType"><option>룸 전원</option><option>신발 락커</option></select></div>
+          </div>
+          <div class="controls">
+            <button class="btn" onclick="hw('POWER_ON')">전원 ON</button>
+            <button class="btn gray" onclick="hw('POWER_OFF')">전원 OFF</button>
+            <button class="btn gold" onclick="hw('LOCKER_OPEN')">락커 OPEN</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function roomHTML() {
+  const r = currentRoom();
+  return `<div class="room-scene">
+    <div class="room-header">
+      <h2>${r.no}호 OTT룸</h2>
+      <span class="room-badge" id="roomStatusBadge">${label(r.status)}</span>
+    </div>
+    <div class="room-canvas" id="roomCanvas">
+      <div class="room-box" id="roomBox">
+        <div class="room-glow ${r.power ? 'on' : ''}" id="roomGlow"></div>
+        <div class="room-back"></div>
+        <div class="room-floor"></div>
+        <div class="room-light ${r.power ? '' : 'off'}" id="roomLight"></div>
+        <div class="room-tv ${r.power ? 'on' : ''}" id="roomTv" title="TV/전원">${r.power ? '▶ OTT 재생중' : 'TV OFF'}</div>
+        <div class="room-sofa" id="roomSofa" title="소파"></div>
+        <div class="room-table"></div>
+        <div class="room-locker ${r.locker ? 'open' : ''}" id="roomLocker" title="신발 락커">${r.locker ? 'OPEN' : 'LOCK'}</div>
+        <div class="room-door ${r.status === 'busy' ? 'open' : ''}" id="roomDoor" title="출입문"></div>
+      </div>
+      <div class="room-hint">드래그: 시점 회전 · 객체 클릭: 직접 제어</div>
+    </div>
+    <div class="room-controls">
+      <button id="btnPower" class="${r.power ? 'on' : ''}" onclick="togglePower()">⚡ 전원 ${r.power ? 'ON' : 'OFF'}</button>
+      <button id="btnLocker" class="${r.locker ? 'on' : ''}" onclick="toggleLocker()">🔐 락커 ${r.locker ? 'OPEN' : 'LOCK'}</button>
+      <button onclick="toggleDoor()">🚪 문 ${document.getElementById('roomDoor')?.classList.contains('open') ? '열림' : '닫힘'}</button>
+      <button onclick="prevRoom()">◀ 이전 룸</button>
+      <button onclick="nextRoom()">다음 룸 ▶</button>
+    </div>
+    <div class="room-info" id="roomInfo">
+      ${r.no}호 · ${label(r.status)} · 전원 ${r.power ? 'ON' : 'OFF'} · 락커 ${r.locker ? 'OPEN' : 'LOCK'}
+      ${r.remain ? ' · ' + r.remain + '분 남음' : ''}
+    </div>
+  </div>`;
+}
+
+function adminHTML() {
+  return `<div class="kiosk-wrap" style="padding:14px">
+    <div class="k-card"><h2>전체 룸 현황</h2>
+      <table class="table"><thead><tr><th>룸</th><th>상태</th><th>고객</th><th>남은시간</th><th>장비</th></tr></thead>
+      <tbody id="adminRows"></tbody></table>
+    </div>
+  </div>`;
+}
+
+function logHTML() {
+  return `<div class="kiosk-wrap" style="padding:14px">
+    <div class="k-card"><h2>운영 로그</h2><div class="log" id="log"></div>
+      <div class="controls" style="margin-top:10px">
+        <button class="btn gray" onclick="exportTxt()">TXT 다운로드</button>
+        <button class="btn gray" onclick="resetDemo()">초기화</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function bindWindowEvents(id) {
+  if (id === 'kiosk') {
+    document.querySelectorAll('.k-tab').forEach(b => b.onclick = () => {
+      document.querySelectorAll('.k-tab,.k-panel').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      document.getElementById('k' + b.dataset.ktab).classList.add('active');
+    });
+  }
+  if (id === 'room') setupRoomInteraction();
+}
+
+function setupRoomInteraction() {
+  const canvas = document.getElementById('roomCanvas');
+  const box = document.getElementById('roomBox');
+  if (!canvas || !box) return;
+
+  let dragging = false, lx, ly;
+  canvas.onmousedown = e => {
+    if (e.target.closest('.room-tv,.room-locker,.room-door,.room-sofa,.room-controls button')) return;
+    dragging = true;
+    box.classList.add('dragging');
+    lx = e.clientX; ly = e.clientY;
+  };
+  document.onmousemove = e => {
+    if (!dragging) return;
+    roomRotY += (e.clientX - lx) * 0.3;
+    roomRotX = Math.max(-5, Math.min(25, roomRotX + (e.clientY - ly) * 0.2));
+    lx = e.clientX; ly = e.clientY;
+    box.style.transform = `rotateX(${roomRotX}deg) rotateY(${roomRotY}deg)`;
+  };
+  document.onmouseup = () => { dragging = false; box?.classList.remove('dragging'); };
+
+  document.getElementById('roomTv')?.addEventListener('click', togglePower);
+  document.getElementById('roomLocker')?.addEventListener('click', toggleLocker);
+  document.getElementById('roomDoor')?.addEventListener('click', toggleDoor);
+}
+
+/* ===== ROOM CONTROLS (sync both layers) ===== */
+function togglePower() {
+  const r = currentRoom();
+  r.power = !r.power;
+  if (r.power && r.status === 'free') { r.status = 'busy'; r.remain = r.remain || 60; }
+  addLog(`${r.no}호 룸뷰에서 전원 ${r.power ? 'ON' : 'OFF'} (수동 조작)`);
+  renderAll();
+  toast(`${r.no}호 전원 ${r.power ? 'ON' : 'OFF'}`);
+}
+
+function toggleLocker() {
+  const r = currentRoom();
+  r.locker = !r.locker;
+  addLog(`${r.no}호 룸뷰에서 락커 ${r.locker ? 'OPEN' : 'LOCK'} (수동 조작)`);
+  renderAll();
+  toast(`${r.no}호 락커 ${r.locker ? 'OPEN' : 'LOCK'}`);
+}
+
+function toggleDoor() {
+  const door = document.getElementById('roomDoor');
+  if (door) {
+    door.classList.toggle('open');
+    addLog(`${selected}호 출입문 ${door.classList.contains('open') ? '개방' : '잠금'} (룸뷰)`);
+    toast(`출입문 ${door.classList.contains('open') ? '열림' : '닫힘'}`);
+  }
+}
+
+function prevRoom() {
+  const idx = rooms.findIndex(r => r.no === selected);
+  selected = rooms[(idx - 1 + rooms.length) % rooms.length].no;
+  renderAll();
+}
+
+function nextRoom() {
+  const idx = rooms.findIndex(r => r.no === selected);
+  selected = rooms[(idx + 1) % rooms.length].no;
+  renderAll();
+}
+
+/* ===== KIOSK ACTIONS ===== */
+function startUse() {
+  const r = currentRoom();
+  if (r.status !== 'free') { toast('이용할 수 없는 룸입니다.'); return; }
+  const min = +document.getElementById('minutes').value;
+  const mode = document.getElementById('mode').value;
+  const phone = document.getElementById('phone')?.value || '010-****-0000';
+  r.status = 'busy'; r.phone = phone; r.remain = min; r.power = true; r.locker = true;
+  const amt = mode === 'pass' ? 0 : Math.round(pricePerHour * min / 60);
+  sales += amt;
+  addLog(`${r.no}호 결제 ${mode === 'pass' ? '회원권' : money(amt)} → 락커 OPEN → 전원 ON`);
+  toast('결제 완료 · 룸뷰 동기화');
+}
+
+function extendUse() {
+  const r = currentRoom();
+  if (r.status !== 'busy') { toast('이용 중인 룸만 연장 가능'); return; }
+  r.remain += 30; sales += 6000;
+  addLog(`${r.no}호 30분 연장 ${money(6000)}`);
+  toast('연장 완료');
+}
+
+function checkout() {
+  const r = currentRoom();
+  if (r.status !== 'busy') { toast('퇴실 내역 없음'); return; }
+  addLog(`${r.no}호 퇴실 → 정산 → 전원 OFF → 청소`);
+  r.status = 'clean'; r.remain = 0; r.power = false; r.locker = true; r.phone = '';
+  toast('퇴실 완료');
+}
+
+function hw(cmd) {
+  const target = document.getElementById('hwTarget')?.value || selected;
+  const r = rooms.find(x => x.no == target) || currentRoom();
+  if (cmd === 'POWER_ON') r.power = true;
+  if (cmd === 'POWER_OFF') r.power = false;
+  if (cmd === 'LOCKER_OPEN') r.locker = true;
+  addLog(`HW ${cmd} → ${target}호 (시뮬)`);
+  renderAll();
+  toast(`하드웨어 ${cmd}`);
+}
+
+function exportTxt() {
+  const text = 'OTT룸 운영 로그\n\n' + logs.join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  a.download = 'kiosk-operation-log.txt';
+  a.click();
+}
+
+function resetDemo() {
+  if (!confirm('데모 데이터를 초기화할까요?')) return;
+  logs = []; sales = 0;
+  rooms = Array.from({length:30}, (_, i) => ({
+    no: 101 + i, status: i < 3 ? 'busy' : (i === 4 ? 'clean' : 'free'),
+    phone: i < 3 ? '010-****-' + String(1000 + i) : '',
+    remain: i < 3 ? 45 + i * 20 : 0, power: i < 3, locker: false
+  }));
+  selected = 101;
+  addLog('데모 초기화 · 데스크탑 이중제어 앱');
+}
+
+/* ===== RENDER ===== */
+function renderAll() {
+  const roomsEl = document.getElementById('rooms');
+  if (roomsEl) {
+    roomsEl.innerHTML = rooms.map(r =>
+      `<div class="room-tile ${selected === r.no ? 'selected' : ''}" onclick="selected=${r.no};renderAll()">
+        <b>${r.no}호 <span class="pill ${r.status}">${label(r.status)}</span></b>
+        <p class="muted">전원 ${r.power ? 'ON' : 'OFF'} · ${r.locker ? '락커열림' : '락커잠김'}</p>
+      </div>`).join('');
+  }
+  const r = currentRoom();
+  const info = document.getElementById('selectedInfo');
+  if (info) info.textContent = `선택: ${r.no}호 / ${label(r.status)} / 전원 ${r.power ? 'ON' : 'OFF'} / 락커 ${r.locker ? 'OPEN' : 'LOCK'}`;
+
+  ['mFree','mBusy','mSales','mAlerts'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const vals = [rooms.filter(x => x.status === 'free').length, rooms.filter(x => x.status === 'busy').length, money(sales), logs.length];
+    el.textContent = vals[i];
+  });
+
+  const adminRows = document.getElementById('adminRows');
+  if (adminRows) adminRows.innerHTML = rooms.map(r =>
+    `<tr><td>${r.no}호</td><td>${label(r.status)}</td><td>${r.phone || '-'}</td><td>${r.remain ? r.remain + '분' : '-'}</td><td>${r.power ? 'ON' : 'OFF'} / ${r.locker ? 'OPEN' : 'LOCK'}</td></tr>`).join('');
+
+  const logEl = document.getElementById('log');
+  if (logEl) logEl.innerHTML = logs.map(l => `<p>${l}</p>`).join('');
+
+  if (windows.room) {
+    const wasFocused = document.getElementById('roomBox');
+    const rot = wasFocused ? wasFocused.style.transform : '';
+    renderWindowContent('room');
+    const box = document.getElementById('roomBox');
+    if (box && rot) box.style.transform = rot;
+  }
+}
+
+/* ===== DESKTOP INIT ===== */
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clockTime').textContent = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('clockDate').textContent = now.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', weekday: 'short' });
+}
+
+document.querySelectorAll('[data-open]').forEach(el => {
+  el.addEventListener('click', () => {
+    createWindow(el.dataset.open);
+    document.getElementById('startMenu').classList.remove('open');
+  });
+});
+
+document.getElementById('startBtn').onclick = () => {
+  document.getElementById('startMenu').classList.toggle('open');
+};
+
+document.querySelectorAll('.task-pill[data-win]').forEach(p => {
+  p.onclick = () => createWindow(p.dataset.win);
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#startMenu') && !e.target.closest('#startBtn')) {
+    document.getElementById('startMenu').classList.remove('open');
+  }
+});
+
+logs = JSON.parse(localStorage.getItem('kioskLogs') || '[]');
+if (!logs.length) addLog('데스크탑 이중제어 앱 시작 — 키오스크 ↔ 3D룸 실시간 연동');
+else renderAll();
+
+createWindow('kiosk');
+createWindow('room');
+updateClock();
+setInterval(updateClock, 1000);
+setInterval(() => {
+  rooms.filter(r => r.status === 'busy' && r.remain > 0).forEach(r => {
+    r.remain--;
+    if (r.remain <= 0) { r.remain = 0; addLog(`${r.no}호 이용시간 만료 알림 (시뮬)`); }
+  });
+  renderAll();
+}, 60000);
+</script>
+</body>
+</html>
